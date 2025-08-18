@@ -30,6 +30,12 @@ class Triangle
             spring_constant = given_spring_constant;
         }
 
+        void change_rest_length(double given_rest_length)
+        {
+            rest_length = given_rest_length;
+        }
+
+
         void print_spring_constant()
         {
             cout << "Spring constant of triangle: " << spring_constant << endl;
