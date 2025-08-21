@@ -10,12 +10,12 @@ int main()
 {
     cout << "Setting up the simulation!" << endl;
 
-    int number_of_particles = 10000;
+    int number_of_particles = 4000;
     double radius           = 0.5;
-    double packing_fraction = 0.01;
+    double packing_fraction = 0.002;
     int iterations          = 1;
-    int steps_per_sweep     = 500 * number_of_particles;
-    int number_of_sweeps    = 1000;
+    int steps_per_sweep     = 1000000;
+    int number_of_sweeps    = 750;
 
 
     cout << "Start of simulation" << endl;
@@ -26,113 +26,47 @@ int main()
     double array_box[3] ={boxlength, boxlength, boxlength};
     bool pbc[3] = {true, true, true};
 
-    // Create points to triangulate a sphere
-    int triangulation_depth = 2;
-    if(triangulation_depth < 0)
-    {
-        cout << "Error! Triangulation depth must be larger than one!" << endl;
-        return 0;
-    } 
-
     Simulationvolume simvol(3, array_box, pbc);
-    MC_Manager manager(0.01, simvol);
+    MC_Manager manager(0.20, simvol);
 
-    manager.triangulate_sphere_using_triangles(4, 0.50, 4.0, 20.0);
+    manager.triangulate_sphere_using_triangles(5, 0.05, 4.0, 10.0);
 
     vec middle_of_simulation_volume(boxlength/2.0, boxlength/2.0, boxlength/2.0);
-    /*for(int i = 0; i < 6; i++)
+    //manager.add_n_particles_with_random_positions(number_of_particles, 0.5, -1);
+
+    for(int i = 0; i < 300; i++)
     {
         manager.add_single_particle_with_given_position(middle_of_simulation_volume, 2.5, -1);
-    }*/
+    }
     manager.setup_neighbor_list_3d();
+//    manager.print_entire_cell_list();
+
+    int previous_number_of_overlaps = manager.check_validity();
+    int current_number_of_overlaps = 0;
 
     ofstream outputfile_position;
-	outputfile_position.open("test_n_1000.txt");
+	outputfile_position.open("sphere_radius_0.05_spring_constant_10.0_and_n_300_particles_with_radius_2.5_within.txt");
     manager.print_configuration_to_file(outputfile_position);
 
-//    manager.refresh_cell_list();
-
-    manager.change_mc_length(0.20);
     cout << "Starting simulation..." << endl;
-    for(int k = 0; k < 100; k++)
-    {
-        for(int i = 0; i < 100 * number_of_particles; i++)
-        {
-            manager.mc_step();
-        }
-       
-        if(k % 1 == 0)
-        {
-            cout << "Step: " << k << " of " << number_of_sweeps << endl;
-            cout << manager.check_validity() << " overlap(s) detected!" << endl;
-        }
-        manager.print_configuration_to_file(outputfile_position);
-    }
-
-    manager.change_mc_length(0.10);
-    cout << "Starting simulation..." << endl;
-    for(int k = 0; k < 10; k++)
-    {
-        for(int i = 0; i < 100 * number_of_particles; i++)
-        {
-            manager.mc_step();
-        }
-       
-        if(k % 1 == 0)
-        {
-            cout << "Step: " << k << " of " << number_of_sweeps << endl;
-            cout << manager.check_validity() << " overlap(s) detected!" << endl;
-        }
-        manager.print_configuration_to_file(outputfile_position);
-    }
-
-    manager.change_mc_length(0.05);
-    cout << "Starting simulation..." << endl;
-    for(int k = 0; k < 10; k++)
-    {
-        for(int i = 0; i < 100 * number_of_particles; i++)
-        {
-            manager.mc_step();
-        }
-       
-        if(k % 1 == 0)
-        {
-            cout << "Step: " << k << " of " << number_of_sweeps << endl;
-            cout << manager.check_validity() << " overlap(s) detected!" << endl;
-        }
-        manager.print_configuration_to_file(outputfile_position);
-    }
-
-    manager.change_mc_length(0.02);
-    cout << "Starting simulation..." << endl;
-    for(int k = 0; k < 10; k++)
-    {
-        for(int i = 0; i < 100 * number_of_particles; i++)
-        {
-            manager.mc_step();
-        }
-       
-        if(k % 1 == 0)
-        {
-            cout << "Step: " << k << " of " << number_of_sweeps << endl;
-            cout << manager.check_validity() << " overlap(s) detected!" << endl;
-        }
-        manager.print_configuration_to_file(outputfile_position);
-    }
-
-
-
     for(int k = 0; k < number_of_sweeps; k++)
     {
         for(int i = 0; i < steps_per_sweep; i++)
         {
             manager.mc_step();
-        }
-       
+        }        
+
         if(k % 1 == 0)
         {
             cout << "Step: " << k << " of " << number_of_sweeps << endl;
-            cout << manager.check_validity() << " overlap(s) detected!" << endl;
+            current_number_of_overlaps = manager.check_validity();
+            cout << current_number_of_overlaps << " overlap(s) detected!" << endl;
+
+            if(current_number_of_overlaps > previous_number_of_overlaps)
+            {
+                cout << "Error in neighborlist!" << endl;
+            }
+            previous_number_of_overlaps = current_number_of_overlaps;
         }
         manager.print_configuration_to_file(outputfile_position);
     }

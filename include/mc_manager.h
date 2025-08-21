@@ -50,6 +50,16 @@ class MC_Manager
         ~MC_Manager() {};
 
 
+        void calculate_total_number_of_particles_in_cell_list()
+        {
+            neighborlist.calculate_total_number_of_particles_in_cell_list();
+        }
+
+        void print_entire_cell_list()
+        {
+            neighborlist.print_entire_cell_list();
+        }
+
         // Add a single particle
         void add_particle(const Particle new_particle)
         {
@@ -405,7 +415,19 @@ class MC_Manager
 
         void setup_neighbor_list_3d()
         {
-            double perfect_cell_size = 5.5;
+            double largest_radius = 0.0;
+            for(auto element : particles)
+            {
+                if(element.radius > largest_radius)
+                {
+                    largest_radius = element.radius;
+                }
+            }
+            cout << "Largest radius: " << largest_radius << endl;
+
+            double perfect_cell_size = 2 * largest_radius + 1.05 * mclength;
+
+            cout << perfect_cell_size << endl;
 
             int intended_number_of_cells_x = int(container->give_size_of_simulation_volume().x / perfect_cell_size);
             int intended_number_of_cells_y = int(container->give_size_of_simulation_volume().y / perfect_cell_size);
@@ -419,19 +441,29 @@ class MC_Manager
 
             neighborlist.setup_cell_size_and_number_of_cells(cellsize_x, cellsize_y, cellsize_z, intended_number_of_cells_x, intended_number_of_cells_y, intended_number_of_cells_z);
             neighborlist.initialize_cell_list(particles);
+
+            for(int i = 0; i < particles.size(); i++)
+            {
+                current_particle = &particles[i];
+                neighborlist.add_particle_to_cell_list(current_particle);
+            }
         }
 
 
-        vector< Particle* > create_list_with_neighboring_particles(Particle* current_particle)
+        vector< Particle* > create_list_with_neighboring_particles(vec given_position)//Particle* current_particle)
         {
-            int bin_x = int( current_particle->give_old_position().x / neighborlist.size_cell_element_x);
-            int bin_y = int( current_particle->give_old_position().y / neighborlist.size_cell_element_y);
-            int bin_z = int( current_particle->give_old_position().z / neighborlist.size_cell_element_z);
+//            int bin_x = int( current_particle->give_position().x / neighborlist.size_cell_element_x);
+//            int bin_y = int( current_particle->give_position().y / neighborlist.size_cell_element_y);
+//            int bin_z = int( current_particle->give_position().z / neighborlist.size_cell_element_z);
+            int bin_x = int( given_position.x / neighborlist.size_cell_element_x);
+            int bin_y = int( given_position.y / neighborlist.size_cell_element_y);
+            int bin_z = int( given_position.z / neighborlist.size_cell_element_z);
+
 
             vector< Particle* > neighboring_particles;
 
             // Particle at the boundary (assuming periodic boundary conditions)
-            int array_bins_x[3] = {-1, -1, -1};
+            int array_bins_x[3];
             if(bin_x == 0)
             {
                 array_bins_x[0] = neighborlist.number_of_cells_x - 1;
@@ -521,7 +553,7 @@ class MC_Manager
         }
 
 
-        void mc_warmup_step()
+/*        void mc_warmup_step()
         {
             uniform_int_distribution<int> distribution_particle(0, give_number_of_registered_particles() - 1);
 
@@ -580,7 +612,7 @@ class MC_Manager
             } 
             neighboring_particles.clear();
         }
-
+*/
 
         void mc_step()
         {
@@ -589,15 +621,28 @@ class MC_Manager
             current_particle = &particles[distribution_particle(gen)];
             mc_direction = create_normalized_3d_random_vector();
 
-            vector< Particle* > neighboring_particles = create_list_with_neighboring_particles(current_particle);
             vec proposed_position = container->calculate_size_of_vector_boundary_conform(current_particle->position + mc_direction * mclength);
+            vector< Particle* > neighboring_particles = create_list_with_neighboring_particles(proposed_position);
 
             bool particle_can_be_moved = true;
 
             // Check for hard-sphere collisions
             for(auto element : neighboring_particles)
             {
-                double distance = (container->calculate_periodic_difference_vector(proposed_position, element->position)).norm();
+                double old_distance = (container->calculate_periodic_difference_vector(current_particle->position, element->position)).norm();
+                double distance     = (container->calculate_periodic_difference_vector(proposed_position, element->position)).norm();
+
+                if(old_distance < element->radius + current_particle->radius)
+                {
+                    if(old_distance < distance)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        particle_can_be_moved = false;                        
+                    }
+                }
                 if(distance < element->radius + current_particle->radius)
                 {
                     particle_can_be_moved = false;
