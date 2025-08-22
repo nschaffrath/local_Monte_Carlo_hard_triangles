@@ -189,6 +189,114 @@ class MC_Manager
             }
         }
 
+        void triangulate_periodic_membrane(int nx, int ny, double given_height, double given_radius, double given_restlength, double given_spring_constant)
+        {
+            vec size_of_simulation_volume = container->give_size_of_simulation_volume();
+            double boxlength_x = size_of_simulation_volume.x;
+            double boxlength_y = size_of_simulation_volume.y;
+            double boxlength_z = size_of_simulation_volume.z;
+
+            double delta_x = boxlength_x / nx;
+            double delta_y = boxlength_y / ny;
+
+            vector< vec > edge_positions;
+
+            if(given_height < 0 || given_height > boxlength_z)
+            {
+                cout << "Heigh of membrane is invalid!" << endl;
+            }
+
+            for(int i = 0; i < nx; i++)
+            {
+                for(int j = 0; j < ny; j++)
+                {
+                    if(j%2 == 0)
+                    {
+                        vec position(i * delta_x, j * delta_y, given_height);
+                        edge_positions.push_back(position);
+                    }
+                    else
+                    {
+                        vec position((i + 0.5) * delta_x, j * delta_y, given_height);
+                        edge_positions.push_back(position);
+                    }
+                }
+            }
+
+            for(int i = 0; i < edge_positions.size(); i++)
+            {
+                this->add_single_particle_with_given_position(edge_positions[i], given_radius, -1);
+            }
+
+            int current_number_of_particles = particles.size() - edge_positions.size();
+            int current_number_of_triangles = triangles.size();
+
+            for(int i = current_number_of_particles; i < particles.size(); i++)
+            {
+                for(int j = current_number_of_particles; j < particles.size(); j++)
+                {
+                    if(&particles[i] != &particles[j])
+                    {
+                        double distance_1_2 = (container->calculate_periodic_difference_vector(particles[i].position, particles[j].position)).norm();
+                        if(distance_1_2 < 1.01 * delta_x)
+                        {
+                            for(int k = current_number_of_particles; k < particles.size(); k++)
+                            {
+                                if(&particles[i] != &particles[k] && &particles[j] != &particles[k])
+                                {
+                                    double distance_1_3 = (container->calculate_periodic_difference_vector(particles[i].position, particles[k].position)).norm();
+                                    if(distance_1_3 < 1.01 * delta_x)
+                                    {
+                                        double distance_2_3 = (container->calculate_periodic_difference_vector(particles[j].position, particles[k].position)).norm();
+                                        if(distance_2_3 < 1.01 * delta_x)
+                                        {
+                                            bool triangle_already_registered = false;
+
+                                            for(int l = 0; l < particles[i].triangle_index.size(); l++)
+                                            {
+                                                for(int m = 0; m < particles[j].triangle_index.size(); m++)
+                                                {
+                                                    if(particles[i].triangle_index[l] == particles[j].triangle_index[m])
+                                                    {
+                                                        for(int n = 0; n < particles[k].triangle_index.size(); n++)
+                                                        {
+                                                            if(particles[i].triangle_index[l] == particles[k].triangle_index[n])
+                                                            {
+                                                                if(particles[i].triangle_index[l] != -1)
+                                                                {
+                                                                    triangle_already_registered = true;
+                                                                }
+                                                            }                                                                        
+                                                        }
+                                                    }
+                                                }
+                                            }                                                
+                
+                                            if(triangle_already_registered == false)
+                                            {
+                                                this->add_single_triangle_with_given_positions(particles[i].particle_index, particles[j].particle_index, particles[k].particle_index, given_restlength, given_spring_constant);   
+                                                particles[i].triangle_index.push_back(number_of_triangles - 1);
+                                                particles[j].triangle_index.push_back(number_of_triangles - 1);
+                                                particles[k].triangle_index.push_back(number_of_triangles - 1);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for(auto triangle : triangles)
+            {
+                particles[triangle.indices_of_particles_in_triangle[0]].triangle_index.push_back(triangle.triangle_index);
+                particles[triangle.indices_of_particles_in_triangle[1]].triangle_index.push_back(triangle.triangle_index);
+                particles[triangle.indices_of_particles_in_triangle[2]].triangle_index.push_back(triangle.triangle_index);
+            }
+
+            cout << "A membrane, which consists out of " << triangles.size() - current_number_of_triangles << " triangles was successfully constructed!" << endl;            
+        }
 
         void triangulate_sphere_using_triangles(int triangulation_depth, double given_radius, double given_restlength, double given_spring_constant)
         {
@@ -206,12 +314,23 @@ class MC_Manager
 
             vector< vec > edge_positions;
 
-            vec edge_position_1(0.35 * boxlength_x, 0.50 * boxlength_y, 0.50 * boxlength_z);
-            vec edge_position_2(0.65 * boxlength_x, 0.50 * boxlength_y, 0.50 * boxlength_z);
-            vec edge_position_3(0.50 * boxlength_x, 0.35 * boxlength_y, 0.50 * boxlength_z);
-            vec edge_position_4(0.50 * boxlength_x, 0.65 * boxlength_y, 0.50 * boxlength_z);    
-            vec edge_position_5(0.50 * boxlength_x, 0.50 * boxlength_y, 0.35 * boxlength_z);
-            vec edge_position_6(0.50 * boxlength_x, 0.50 * boxlength_y, 0.65 * boxlength_z);   
+            double ratio = boxlength_x / boxlength_y;
+            cout << 0.35 * boxlength_x << " " << ratio * 0.35 * boxlength_y << endl;
+
+/*            vec edge_position_1(0.35 * boxlength_x, ratio * 0.50 * boxlength_y, 0.50 * boxlength_z);
+            vec edge_position_2(0.65 * boxlength_x, ratio * 0.50 * boxlength_y, 0.50 * boxlength_z);
+            vec edge_position_3(0.50 * boxlength_x, ratio * 0.35 * boxlength_y, 0.50 * boxlength_z);
+            vec edge_position_4(0.50 * boxlength_x, ratio * 0.65 * boxlength_y, 0.50 * boxlength_z);    
+            vec edge_position_5(0.50 * boxlength_x, ratio * 0.50 * boxlength_y, 0.35 * boxlength_z);
+            vec edge_position_6(0.50 * boxlength_x, ratio * 0.50 * boxlength_y, 0.65 * boxlength_z);   
+*/
+            vec edge_position_1(0.35 * boxlength_x, 0.50 * boxlength_x, 0.50 * boxlength_z);
+            vec edge_position_2(0.65 * boxlength_x, 0.50 * boxlength_x, 0.50 * boxlength_z);
+            vec edge_position_3(0.50 * boxlength_x, 0.35 * boxlength_x, 0.50 * boxlength_z);
+            vec edge_position_4(0.50 * boxlength_x, 0.65 * boxlength_x, 0.50 * boxlength_z);    
+            vec edge_position_5(0.50 * boxlength_x, 0.50 * boxlength_x, 0.35 * boxlength_z);
+            vec edge_position_6(0.50 * boxlength_x, 0.50 * boxlength_x, 0.65 * boxlength_z);   
+
 
             double diameter_octahedron = 0.3 * boxlength_x;
 
@@ -258,9 +377,7 @@ class MC_Manager
             edge_points_initial_octahedron[7][2] = edge_position_6;
     
             double initial_edge_length = (container->calculate_periodic_difference_vector(edge_position_1, edge_position_3)).norm();
-            cout << initial_edge_length << endl;
             initial_edge_length /= pow(2,triangulation_depth);
-            cout << initial_edge_length << endl;
 
             for(int i = 0; i < edge_positions.size(); i++)
             {
@@ -272,7 +389,6 @@ class MC_Manager
                 this->divide_triangle_into_smaller_triangles_and_add_new_particles(edge_points_initial_octahedron[i][0], edge_points_initial_octahedron[i][1], edge_points_initial_octahedron[i][2], given_radius, triangulation_depth);
             }
 
-            cout << "Number of particles: " << particles.size() << endl;
             for(int i = 0; i < particles.size(); i++)
             {
                 for(int j = 0; j < particles.size(); j++)
@@ -332,7 +448,7 @@ class MC_Manager
 
             for(int i = 0; i < particles.size(); i++)
             {
-                vec middle_of_simulation_volume(boxlength_x/2.0 , boxlength_y/2.0, boxlength_z/2.0);
+                vec middle_of_simulation_volume(boxlength_x/2.0 , boxlength_x/2.0, boxlength_z/2.0);
                 vec radial_vector = container->calculate_periodic_difference_vector(middle_of_simulation_volume, particles[i].position);
                 radial_vector.normalize();
 
@@ -398,7 +514,7 @@ class MC_Manager
             // Specify periodic boundary conditions
             outputfile << "pbc=\"" << 1 << " " << 1 << " " << 0 << "\" ";
             // Specify simulation cell geometry
-            outputfile << "Lattice=\"" << container->give_size_of_simulation_volume().x << " 0.0 0.0 0.0 " << container->give_size_of_simulation_volume().y << " 0.0 0.0 0.0 " << 0 << "\" ";
+            outputfile << "Lattice=\"" << container->give_size_of_simulation_volume().x << " 0.0 0.0 0.0 " << container->give_size_of_simulation_volume().y << " 0.0 0.0 0.0 " << container->give_size_of_simulation_volume().z << "\" ";
             // Specify input types
             outputfile << "Properties=pos:R:3:radius:R:1:color:R:3 " << endl;
 
